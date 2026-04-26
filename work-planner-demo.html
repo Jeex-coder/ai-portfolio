@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Work Planner — Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap');
+
+  :root {
+    --white: #ffffff;
+    --bg: #f5f3ef;
+    --surface: #ffffff;
+    --border: #e5e1d8;
+    --border2: #ccc9be;
+    --text: #1a1916;
+    --muted: #8a8680;
+    --accent: #1a5f3c;
+    --accent-light: #e8f4ed;
+    --high: #c0392b;
+    --high-bg: #fdf0ef;
+    --med: #c67c1a;
+    --med-bg: #fdf6e8;
+    --low: #1a7a4a;
+    --low-bg: #e8f6ee;
+    --done: #1a5f3c;
+    --done-bg: #d4edd9;
+    --ongoing: #1a4a8a;
+    --mostly: #5a3a9e;
+    --tag: #6b6660;
+    --shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .topbar {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 60px;
+  }
+  .brand { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text); }
+  .brand span { color: var(--accent); }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .date-label { font-size: 13px; color: var(--muted); }
+  .upload-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--accent); color: white;
+    border: none; border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; font-weight: 500;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+  }
+  .upload-btn:hover { opacity: 0.9; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr 280px;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--white);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+  }
+  .sidebar-section { margin-bottom: 28px; }
+  .sidebar-title {
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 12px; font-weight: 500;
+    padding: 0 8px;
+  }
+  .nav-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 13px; color: var(--muted);
+    transition: all 0.15s;
+  }
+  .nav-item:hover { background: var(--bg); color: var(--text); }
+  .nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+  .nav-count {
+    font-size: 11px; background: var(--bg); padding: 2px 7px;
+    border-radius: 10px; color: var(--muted);
+  }
+  .nav-item.active .nav-count { background: var(--accent); color: white; }
+
+  .cat-dot {
+    width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 8px;
+  }
+
+  /* Mini calendar in sidebar */
+  .mini-cal { padding: 0 8px; }
+  .mini-cal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .mini-cal-title { font-size: 13px; font-weight: 500; }
+  .mini-cal-nav button {
+    background: none; border: none; cursor: pointer; color: var(--muted);
+    font-size: 16px; padding: 0 2px; line-height: 1;
+  }
+  .mini-cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+  .mc-dow { font-size: 9px; text-align: center; color: var(--muted); padding-bottom: 4px; }
+  .mc-day {
+    font-size: 11px; text-align: center; padding: 4px 1px;
+    border-radius: 4px; color: var(--muted); cursor: default;
+  }
+  .mc-day.today { background: var(--accent); color: white; font-weight: 500; border-radius: 50%; }
+  .mc-day.has-reminder { color: var(--med); font-weight: 600; }
+
+  /* Main content */
+  .content { padding: 28px 28px; overflow-y: auto; }
+
+  .page-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; }
+  .page-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .search-box {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 14px; width: 220px;
+  }
+  .search-box input {
+    border: none; outline: none; font-family: 'DM Sans', sans-serif;
+    font-size: 13px; color: var(--text); background: transparent; width: 100%;
+  }
+  .search-icon { color: var(--muted); font-size: 14px; }
+
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .kpi-num { font-size: 30px; font-weight: 600; line-height: 1; font-family: 'DM Serif Display', serif; }
+  .kpi-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .kpi-trend { font-size: 11px; margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .section-title { font-weight: 500; font-size: 15px; }
+  .view-toggle {
+    display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .view-btn {
+    padding: 5px 12px; border: none; background: transparent;
+    font-size: 12px; cursor: pointer; color: var(--muted);
+    font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+  }
+  .view-btn.active { background: var(--accent); color: white; }
+
+  .task-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 10px; overflow: hidden;
+    box-shadow: var(--shadow); transition: box-shadow 0.15s;
+  }
+  .task-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .task-card-header {
+    display: grid; grid-template-columns: auto 1fr auto auto auto;
+    align-items: center; gap: 12px; padding: 14px 18px; cursor: pointer;
+  }
+  .priority-pill {
+    width: 6px; height: 36px; border-radius: 3px; flex-shrink: 0;
+  }
+  .task-info { min-width: 0; }
+  .task-name { font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .task-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .status-pill {
+    font-size: 11px; padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+    font-weight: 500; flex-shrink: 0;
+  }
+  .status-done { background: var(--done-bg); color: var(--done); }
+  .status-ongoing { background: #e8edf8; color: var(--ongoing); }
+  .status-mostly { background: #f0ecfa; color: var(--mostly); }
+  .status-notstart { background: var(--bg); color: var(--muted); }
+  .status-regular { background: #f0f4ff; color: #4a6fa5; }
+
+  .reminder-chip {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 3px 10px; border-radius: 20px;
+    background: var(--med-bg); color: var(--med); white-space: nowrap;
+  }
+  .expand-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; padding: 4px; }
+
+  .progress-bar-wrap {
+    height: 3px; background: var(--border); overflow: hidden; margin: 0 18px;
+  }
+  .progress-bar-fill { height: 100%; transition: width 0.3s; }
+
+  .sub-tasks-wrap {
+    background: var(--bg); border-top: 1px solid var(--border);
+    padding: 12px 18px 14px;
+    display: none;
+  }
+  .sub-tasks-wrap.open { display: block; }
+  .sub-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .sub-row:last-child { border-bottom: none; }
+  .sub-icon { width: 6px; height: 6px; border-radius: 50%; background: var(--border2); margin-top: 5px; flex-shrink: 0; }
+  .sub-body { flex: 1; min-width: 0; }
+  .sub-name { font-size: 13px; font-weight: 500; }
+  .sub-note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .sub-meta { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--bg); color: var(--tag); border: 1px solid var(--border); }
+
+  .update-log {
+    margin-top: 8px; font-size: 12px; color: var(--muted);
+    background: white; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; border-left: 3px solid var(--accent);
+  }
+
+  /* Right panel */
+  .right-col { background: var(--white); border-left: 1px solid var(--border); padding: 24px 20px; overflow-y: auto; }
+  .rp-section { margin-bottom: 28px; }
+  .rp-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 14px; font-weight: 500; }
+
+  .today-card {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 8px;
+    border-left: 3px solid var(--accent);
+  }
+  .today-task-name { font-size: 13px; font-weight: 500; }
+  .today-action { font-size: 11px; color: var(--accent); margin-top: 3px; }
+  .today-target { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .reminder-card {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .reminder-card:last-child { border-bottom: none; }
+  .rem-date-box {
+    min-width: 38px; text-align: center; background: var(--bg);
+    border-radius: 8px; padding: 6px 4px;
+  }
+  .rem-day { font-size: 18px; font-weight: 600; line-height: 1; font-family: 'DM Serif Display', serif; }
+  .rem-mon { font-size: 9px; text-transform: uppercase; color: var(--muted); letter-spacing: 1px; }
+  .rem-urgent .rem-date-box { background: var(--high-bg); }
+  .rem-urgent .rem-day { color: var(--high); }
+  .rem-task { font-size: 12px; font-weight: 500; }
+  .rem-who { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .rem-badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 8px;
+    margin-top: 4px; display: inline-block;
+    background: var(--med-bg); color: var(--med);
+  }
+
+  /* Update modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--white); border-radius: 16px; padding: 28px;
+    width: 480px; max-width: 96vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 20px; }
+  .field { margin-bottom: 16px; }
+  .field label { font-size: 12px; font-weight: 500; display: block; margin-bottom: 6px; color: var(--muted); }
+  .field textarea, .field select {
+    width: 100%; border: 1px solid var(--border2); border-radius: 10px;
+    padding: 10px 14px; font-family: 'DM Sans', sans-serif; font-size: 13px;
+    color: var(--text); background: var(--white); resize: vertical;
+    outline: none; transition: border-color 0.15s;
+  }
+  .field textarea:focus, .field select:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-ghost {
+    padding: 9px 18px; border-radius: 10px; border: 1px solid var(--border2);
+    background: transparent; color: var(--text); cursor: pointer; font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .btn-primary {
+    padding: 9px 22px; border-radius: 10px; border: none;
+    background: var(--accent); color: white; font-weight: 500; cursor: pointer;
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+  }
+
+  .empty-state {
+    text-align: center; padding: 48px 20px; color: var(--muted); font-size: 13px;
+  }
+
+  /* ── Download button ── */
+  .download-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: #ebf4ff; color: #2c5282;
+    border: 1px solid #bee3f8; border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; font-weight: 500;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: background 0.15s;
+  }
+  .download-btn:hover { background: #bee3f8; }
+  .download-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+  /* ── Completed tasks section ── */
+  .completed-section { margin-top: 32px; }
+  .completed-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px; padding-bottom: 10px;
+    border-bottom: 2px solid #d4edd9;
+  }
+  .completed-title {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 500; font-size: 15px; color: var(--done);
+  }
+  .done-icon {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #d4edd9; display: flex; align-items: center;
+    justify-content: center; font-size: 11px;
+  }
+  .completed-count {
+    font-size: 12px; background: #d4edd9; color: var(--done);
+    padding: 2px 10px; border-radius: 10px;
+  }
+  .toggle-completed-btn {
+    font-size: 12px; color: var(--muted); cursor: pointer;
+    background: none; border: none; font-family: 'DM Sans', sans-serif;
+  }
+  .toggle-completed-btn:hover { color: var(--text); }
+  .task-card.done-card { opacity: 0.75; background: #fafef8; }
+  .task-card.done-card:hover { opacity: 1; }
+  .done-stamp { font-size: 11px; color: var(--done); margin-top: 2px; font-weight: 500; }
+
+  /* ── Sidebar done counter ── */
+  .done-stat {
+    background: #d4edd9; border-radius: 10px; padding: 12px 14px; margin-top: 8px;
+  }
+  .done-stat-num { font-size: 22px; font-weight: 600; color: var(--done); font-family: 'DM Serif Display', serif; }
+  .done-stat-lbl { font-size: 11px; color: var(--done); margin-top: 2px; opacity: 0.8; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #1a1916; color: white; border-radius: 10px;
+    padding: 12px 20px; font-size: 13px; font-weight: 500;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    transform: translateY(80px); opacity: 0;
+    transition: all 0.3s; z-index: 200;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.green { background: var(--done); }
+  .toast.blue  { background: #2c5282; }
+
+  /* ── Subtask row — clickable + done state ── */
+  .sub-row { cursor: pointer; border-radius: 8px; transition: background 0.12s; }
+  .sub-row:hover { background: rgba(0,0,0,0.03); }
+  .sub-name.sub-done { text-decoration: line-through; color: var(--muted); }
+  .sub-done-stamp { font-size: 10px; color: var(--done); margin-top: 2px; }
+  .sub-progress { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .sub-prog-bar { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .sub-prog-fill { height: 100%; border-radius: 2px; }
+  .sub-count-badge {
+    font-size: 10px; padding: 1px 7px; border-radius: 8px;
+    background: #e8f4ed; color: var(--done); font-weight: 600; margin-left: 6px;
+  }
+  .sub-count-badge.has-pending { background: var(--med-bg); color: var(--med); }
+
+  /* ── Add Task button ── */
+  .add-task-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--white); color: var(--accent);
+    border: 1.5px dashed var(--accent); border-radius: 12px;
+    padding: 12px 20px; font-size: 13px; font-weight: 500;
+    cursor: pointer; font-family: 'DM Sans', sans-serif;
+    width: 100%; justify-content: center; margin-top: 4px;
+    transition: background 0.15s;
+  }
+  .add-task-btn:hover { background: var(--accent-light); }
+
+  /* ── Wide modal for add/edit task ── */
+  .modal-wide { width: 600px; max-width: 97vw; }
+  .modal-subtitle { font-size: 12px; color: var(--muted); margin-bottom: 20px; margin-top: -14px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .field input[type=text], .field input[type=date] {
+    width: 100%; border: 1px solid var(--border2); border-radius: 10px;
+    padding: 10px 14px; font-family: 'DM Sans', sans-serif; font-size: 13px;
+    color: var(--text); background: var(--white); outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .modal-section-label {
+    font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--muted); margin: 16px 0 10px; font-weight: 500;
+  }
+  .sub-adder { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .sub-adder-row { display: flex; align-items: center; gap: 8px; }
+  .sub-adder input { flex: 1; border: none; outline: none; font-size: 12px; font-family: 'DM Sans',sans-serif; background: transparent; color: var(--text); }
+  .btn-add-sub { background: none; border: 1px solid var(--border2); border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; color: var(--muted); font-family: 'DM Sans',sans-serif; }
+  .btn-add-sub:hover { border-color: var(--accent); color: var(--accent); }
+  .sub-entry { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .sub-entry:last-child { border-bottom: none; }
+  .sub-entry-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; }
+  .sub-entry-del:hover { color: var(--high); }
+  .modal-tabs { display: flex; gap: 2px; margin-bottom: 18px; }
+  .modal-tab { padding: 6px 16px; border-radius: 8px; border: none; font-family: 'DM Sans',sans-serif; font-size: 13px; cursor: pointer; background: var(--bg); color: var(--muted); }
+  .modal-tab.on { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Work <span>Planner</span> <span style="font-size:11px;background:#fef3cd;color:#856404;border:1px solid #ffc107;border-radius:6px;padding:2px 9px;font-family:'DM Sans',sans-serif;font-weight:500;vertical-align:middle;margin-left:8px;">✦ DEMO</span></div>
+  <div class="topbar-right">
+    <div class="date-label" id="topDate"></div>
+    <div style="font-size:12px;color:#856404;background:#fef3cd;border:1px solid #ffc107;border-radius:8px;padding:6px 14px;">📋 Demo mode — sample data loaded</div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Views</div>
+      <div class="nav-item active" onclick="setFilter('all',this)" data-filter="all">All Tasks <span class="nav-count" id="cnt-all">0</span></div>
+      <div class="nav-item" onclick="setFilter('1 (High)',this)" data-filter="1 (High)">🔴 High Priority <span class="nav-count" id="cnt-high">0</span></div>
+      <div class="nav-item" onclick="setFilter('2 (Med)',this)" data-filter="2 (Med)">🟡 Medium <span class="nav-count" id="cnt-med">0</span></div>
+      <div class="nav-item" onclick="setFilter('3 (Low)',this)" data-filter="3 (Low)">🟢 Low Priority <span class="nav-count" id="cnt-low">0</span></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Categories</div>
+      <div class="nav-item" onclick="setFilter('Adhoc',this)" data-filter="Adhoc"><span class="cat-dot" style="background:#1a4a8a"></span>Adhoc <span class="nav-count" id="cnt-adhoc">0</span></div>
+      <div class="nav-item" onclick="setFilter('HO Project',this)" data-filter="HO Project"><span class="cat-dot" style="background:#5a3a9e"></span>HO Project <span class="nav-count" id="cnt-ho">0</span></div>
+      <div class="nav-item" onclick="setFilter('HO Followup',this)" data-filter="HO Followup"><span class="cat-dot" style="background:#1a7a4a"></span>HO Followup <span class="nav-count" id="cnt-follow">0</span></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Progress</div>
+      <div class="done-stat">
+        <div class="done-stat-num" id="cntDone">0</div>
+        <div class="done-stat-lbl">Tasks completed</div>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Calendar</div>
+      <div class="mini-cal" id="miniCal"></div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Work Tracker</div>
+        <div class="page-sub">IA assignments & follow-ups</div>
+      </div>
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" placeholder="Search..." id="searchInput" oninput="renderTasks()">
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-num" id="kTotal" style="color:var(--accent)">0</div>
+        <div class="kpi-lbl">Total main tasks</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-num" id="kHigh" style="color:var(--high)">0</div>
+        <div class="kpi-lbl">High priority</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-num" id="kInProg" style="color:var(--ongoing)">0</div>
+        <div class="kpi-lbl">In progress</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-num" id="kRemind" style="color:var(--med)">0</div>
+        <div class="kpi-lbl">Due reminders</div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Tasks</div>
+    </div>
+
+    <div id="taskList">
+      <div class="empty-state">Upload your Excel file to load tasks</div>
+    </div>
+    <button class="add-task-btn" onclick="openAddTaskModal()">＋ Add New Task</button>
+
+    <!-- Completed Tasks Section -->
+    <div class="completed-section" id="completedSection" style="display:none">
+      <div class="completed-header">
+        <div class="completed-title">
+          <div class="done-icon">✓</div>
+          Completed Tasks
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="completed-count" id="completedCount">0 done</span>
+          <button class="toggle-completed-btn" id="toggleDoneBtn" onclick="toggleDone()">▾ Hide</button>
+        </div>
+      </div>
+      <div id="completedList"></div>
+    </div>
+  </div>
+
+  <div class="right-col">
+    <div class="rp-section">
+      <div class="rp-title">Today's Actions</div>
+      <div id="todaySection"><div style="font-size:12px;color:var(--muted)">No tasks loaded</div></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-title">Upcoming Reminders</div>
+      <div id="reminderList"><div style="font-size:12px;color:var(--muted)">No reminders loaded</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Main task update modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Update Task</div>
+    <div class="field">
+      <label>Latest progress update</label>
+      <textarea rows="3" id="modalUpdate" placeholder="Describe what happened..."></textarea>
+    </div>
+    <div class="field">
+      <label>Completion status</label>
+      <select id="modalStatus">
+        <option>Regular update</option>
+        <option>Not start</option>
+        <option>Ongoing (30%)</option>
+        <option>Ongoing (60%)</option>
+        <option>Mostly complete (90%)</option>
+        <option>Complete (100%)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Next reminder</label>
+      <select id="modalReminder">
+        <option value="">— Keep existing —</option>
+        <option value="next day">Next day</option>
+        <option value="next 3 days">Next 3 days</option>
+        <option value="next monday">Next monday</option>
+        <option value="next 1 week">Next 1 week</option>
+        <option value="next 2 weeks">Next 2 weeks</option>
+        <option value="next 4 weeks">Next 4 weeks</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveUpdate()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sub-task update modal -->
+<div class="modal-overlay" id="subModal">
+  <div class="modal">
+    <div class="modal-title" id="subModalTitle">Update Sub-task</div>
+    <div class="field">
+      <label>Sub-task description</label>
+      <input type="text" id="subModalDesc" placeholder="Sub-task name / description">
+    </div>
+    <div class="field">
+      <label>Progress update</label>
+      <textarea rows="2" id="subModalUpdate" placeholder="What happened?"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Completion status</label>
+        <select id="subModalStatus">
+          <option>Regular update</option>
+          <option>Not start</option>
+          <option>Ongoing (30%)</option>
+          <option>Ongoing (60%)</option>
+          <option>Mostly complete (90%)</option>
+          <option>Complete (100%)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Next reminder</label>
+        <select id="subModalReminder">
+          <option value="">— Keep existing —</option>
+          <option value="next day">Next day</option>
+          <option value="next 3 days">Next 3 days</option>
+          <option value="next monday">Next monday</option>
+          <option value="next 1 week">Next 1 week</option>
+          <option value="next 2 weeks">Next 2 weeks</option>
+          <option value="next 4 weeks">Next 4 weeks</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeSubModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveSubUpdate()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Task modal -->
+<div class="modal-overlay" id="addTaskModal">
+  <div class="modal modal-wide">
+    <div class="modal-title" id="addTaskTitle">Add New Task</div>
+    <div class="modal-subtitle" id="addTaskSubtitle">Fill in the details below. Sub-tasks are optional.</div>
+    <div class="modal-tabs">
+      <button class="modal-tab on" id="tabMain" onclick="switchAddTab('main')">Main Task</button>
+      <button class="modal-tab" id="tabSub" onclick="switchAddTab('sub')">Add as Sub-task</button>
+    </div>
+
+    <!-- Main task fields -->
+    <div id="addMainFields">
+      <div class="field-row">
+        <div class="field">
+          <label>Task name *</label>
+          <input type="text" id="atTask" placeholder="e.g. FCS Review - CRM">
+        </div>
+        <div class="field">
+          <label>PIC / User</label>
+          <input type="text" id="atPic" placeholder="e.g. Pnuk Thimmaporn (CRM)">
+        </div>
+      </div>
+      <div class="field-row-3">
+        <div class="field">
+          <label>Category</label>
+          <select id="atCategory">
+            <option>Adhoc</option>
+            <option>HO Project</option>
+            <option>HO Followup</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Priority</label>
+          <select id="atPriority">
+            <option value="2 (Med)">2 (Med)</option>
+            <option value="1 (High)">1 (High)</option>
+            <option value="3 (Low)">3 (Low)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Initial status</label>
+          <select id="atCompletion">
+            <option>Not start</option>
+            <option>Ongoing (30%)</option>
+            <option>Ongoing (60%)</option>
+            <option>Mostly complete (90%)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Reminder</label>
+          <select id="atReminder">
+            <option value="">— None —</option>
+            <option value="next day">Next day</option>
+            <option value="next 3 days">Next 3 days</option>
+            <option value="next monday">Next monday</option>
+            <option value="next 1 week">Next 1 week</option>
+            <option value="next 2 weeks">Next 2 weeks</option>
+            <option value="next 4 weeks">Next 4 weeks</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Target date</label>
+          <input type="date" id="atTargetDate">
+        </div>
+      </div>
+      <div class="field">
+        <label>Initial notes / update</label>
+        <textarea rows="2" id="atUpdate" placeholder="Any initial notes..."></textarea>
+      </div>
+
+      <div class="modal-section-label">Sub-tasks (optional)</div>
+      <div id="subEntries"></div>
+      <div class="sub-adder">
+        <div class="sub-adder-row">
+          <input type="text" id="subEntryInput" placeholder="Sub-task description..." onkeydown="if(event.key==='Enter')addSubEntry()">
+          <button class="btn-add-sub" onclick="addSubEntry()">＋ Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub-task of existing main -->
+    <div id="addSubFields" style="display:none">
+      <div class="field">
+        <label>Parent main task *</label>
+        <select id="atParentTask"></select>
+      </div>
+      <div class="field">
+        <label>Sub-task description *</label>
+        <input type="text" id="atSubDesc" placeholder="e.g. ROS3.6 Social Media Monitoring">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Completion status</label>
+          <select id="atSubCompletion">
+            <option>Not start</option>
+            <option>Ongoing (30%)</option>
+            <option>Ongoing (60%)</option>
+            <option>Mostly complete (90%)</option>
+            <option>Complete (100%)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Reminder</label>
+          <select id="atSubReminder">
+            <option value="">— None —</option>
+            <option value="next day">Next day</option>
+            <option value="next 3 days">Next 3 days</option>
+            <option value="next monday">Next monday</option>
+            <option value="next 1 week">Next 1 week</option>
+            <option value="next 2 weeks">Next 2 weeks</option>
+            <option value="next 4 weeks">Next 4 weeks</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <textarea rows="2" id="atSubUpdate" placeholder="Any notes..."></textarea>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeAddTaskModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveNewTask()">Add Task</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let tasks = [], currentFilter = 'all', activeTaskId = null, taskUpdates = {};
+let rawHeaders = [], doneVisible = true;
+const today = new Date();
+let calY = today.getFullYear(), calM = today.getMonth();
+
+document.getElementById('topDate').textContent = today.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+// ── DEMO DUMMY DATA ────────────────────────────────────────
+function loadDemoData() {
+  const d = (y,m,day) => new Date(y, m-1, day);
+  const now = today;
+  const past = (days) => { const x = new Date(now); x.setDate(x.getDate()-days); return x; };
+
+  tasks = [
+    // ── MAIN 1: High – Cash Audit
+    { no:'260401', type:'Main', task:'FCS Review — Cash & Vault Management', subtask:'', pic:'Somchai Wiset (Finance)', category:'HO Project', priority:'1 (High)', firstDate:past(14), progressDate:past(2), reminder:'next day', update:'Confirmed vault count discrepancy on 24 Apr. Escalation pending.', targetDate:d(2026,5,10), completion:'Ongoing (60%)' },
+    { no:'260401S1', type:'Sub', task:'FCS Review — Cash & Vault Management', subtask:'Physical cash count verification', pic:'Somchai Wiset', category:'HO Project', priority:'1 (High)', firstDate:past(14), progressDate:past(3), reminder:'next 3 days', update:'Count completed — variance THB 4,200 found.', targetDate:null, completion:'Mostly complete (90%)' },
+    { no:'260401S2', type:'Sub', task:'FCS Review — Cash & Vault Management', subtask:'Review vault access logs vs CCTV timestamps', pic:'Natchaya P.', category:'HO Project', priority:'1 (High)', firstDate:past(10), progressDate:past(2), reminder:'next monday', update:'3 unauthorized entries flagged for escalation.', targetDate:null, completion:'Ongoing (60%)' },
+    { no:'260401S3', type:'Sub', task:'FCS Review — Cash & Vault Management', subtask:'Draft management letter — cash findings', pic:'Somchai Wiset', category:'HO Project', priority:'1 (High)', firstDate:past(5), progressDate:past(1), reminder:'next 3 days', update:'First draft sent to manager for review.', targetDate:null, completion:'Ongoing (30%)' },
+
+    // ── MAIN 2: Med – Inventory
+    { no:'260402', type:'Main', task:'Stock Count — DC Warehouse Inventory', subtask:'', pic:'Pranee Jantong (Ops)', category:'Adhoc', priority:'2 (Med)', firstDate:past(20), progressDate:past(5), reminder:'next 1 week', update:'Cycle count completed for zones A-C. Zones D-F pending.', targetDate:d(2026,5,20), completion:'Ongoing (60%)' },
+    { no:'260402S1', type:'Sub', task:'Stock Count — DC Warehouse Inventory', subtask:'Zone A–C physical count & reconciliation', pic:'Pranee Jantong', category:'Adhoc', priority:'2 (Med)', firstDate:past(20), progressDate:past(5), reminder:'', update:'Reconciled. Variance 0.3% within threshold.', targetDate:null, completion:'Complete (100%)' },
+    { no:'260402S2', type:'Sub', task:'Stock Count — DC Warehouse Inventory', subtask:'Zone D–F physical count', pic:'Kittipong S.', category:'Adhoc', priority:'2 (Med)', firstDate:past(5), progressDate:past(1), reminder:'next 1 week', update:'Scheduled for 28 Apr.', targetDate:null, completion:'Not start' },
+
+    // ── MAIN 3: High – Vendor Payment
+    { no:'260403', type:'Main', task:'Vendor Payment Review — Duplicate Invoice Check', subtask:'', pic:'Watanya Petchara (AP)', category:'HO Followup', priority:'1 (High)', firstDate:past(8), progressDate:past(1), reminder:'next day', update:'Data extract from SAP completed. Running duplicate detection script.', targetDate:d(2026,4,30), completion:'Mostly complete (90%)' },
+    { no:'260403S1', type:'Sub', task:'Vendor Payment Review — Duplicate Invoice Check', subtask:'Extract AP transactions Q1 from SAP', pic:'Watanya Petchara', category:'HO Followup', priority:'1 (High)', firstDate:past(8), progressDate:past(3), reminder:'', update:'Extracted 14,382 records.', targetDate:null, completion:'Complete (100%)' },
+    { no:'260403S2', type:'Sub', task:'Vendor Payment Review — Duplicate Invoice Check', subtask:'Run duplicate detection & flag anomalies', pic:'Watanya Petchara', category:'HO Followup', priority:'1 (High)', firstDate:past(3), progressDate:past(1), reminder:'next day', update:'12 potential duplicates found — total exposure THB 238,000.', targetDate:null, completion:'Mostly complete (90%)' },
+
+    // ── MAIN 4: Low – Policy Review
+    { no:'260404', type:'Main', task:'Expense Policy Compliance Walkthrough', subtask:'', pic:'Malinee Suksri (HR)', category:'HO Project', priority:'3 (Low)', firstDate:past(30), progressDate:past(7), reminder:'next 2 weeks', update:'Interview with 4 dept heads scheduled for next week.', targetDate:d(2026,5,30), completion:'Ongoing (30%)' },
+
+    // ── MAIN 5: Med – IT Access
+    { no:'260405', type:'Main', task:'IT Access Rights Review — Privileged Accounts', subtask:'', pic:'Teerasak N. (IT Sec)', category:'HO Project', priority:'2 (Med)', firstDate:past(12), progressDate:past(3), reminder:'next 3 days', update:'Active Directory export reviewed. 7 terminated employees still have active accounts.', targetDate:d(2026,5,15), completion:'Ongoing (60%)' },
+    { no:'260405S1', type:'Sub', task:'IT Access Rights Review — Privileged Accounts', subtask:'Export AD privileged account list', pic:'Teerasak N.', category:'HO Project', priority:'2 (Med)', firstDate:past(12), progressDate:past(5), reminder:'', update:'Exported 342 accounts.', targetDate:null, completion:'Complete (100%)' },
+    { no:'260405S2', type:'Sub', task:'IT Access Rights Review — Privileged Accounts', subtask:'Cross-check vs terminated employee HR list', pic:'Teerasak N.', category:'HO Project', priority:'2 (Med)', firstDate:past(5), progressDate:past(3), reminder:'next 3 days', update:'7 mismatches found — escalating to CISO.', targetDate:null, completion:'Mostly complete (90%)' },
+    { no:'260405S3', type:'Sub', task:'IT Access Rights Review — Privileged Accounts', subtask:'Draft remediation memo to IT head', pic:'Teerasak N.', category:'HO Project', priority:'2 (Med)', firstDate:past(2), progressDate:past(1), reminder:'next monday', update:'Draft in progress.', targetDate:null, completion:'Ongoing (30%)' },
+
+    // ── MAIN 6: Med – Store Audit
+    { no:'260406', type:'Main', task:'Store Operations Audit — Branch 087 Silom', subtask:'', pic:'Pornpan W. (Ops Audit)', category:'Adhoc', priority:'2 (Med)', firstDate:past(6), progressDate:past(1), reminder:'next 3 days', update:'On-site visit completed. POS reconciliation outstanding.', targetDate:d(2026,5,5), completion:'Ongoing (60%)' },
+
+    // ── MAIN 7: High – COMPLETED
+    { no:'260301', type:'Main', task:'Q1 Internal Audit Report — Final Submission', subtask:'', pic:'Jee (IA Lead)', category:'HO Project', priority:'1 (High)', firstDate:past(45), progressDate:past(10), reminder:'', update:'Report submitted and approved by Audit Committee on 15 Apr.', targetDate:d(2026,4,15), completion:'Complete (100%)' },
+
+    // ── MAIN 8: Low – COMPLETED
+    { no:'260302', type:'Main', task:'Staff Petty Cash Reconciliation — Feb Cycle', subtask:'', pic:'Malinee Suksri', category:'Adhoc', priority:'3 (Low)', firstDate:past(60), progressDate:past(25), reminder:'', update:'No exceptions found. Filed.', targetDate:d(2026,4,1), completion:'Complete (100%)' },
+  ];
+  renderAll();
+}
+
+loadDemoData();
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => t.className = 'toast', 2800);
+}
+
+function renderAll() {
+  updateCounts(); renderTasks(); renderCompleted(); renderMiniCal(); renderReminders(); renderToday();
+}
+
+function isCompleted(comp) {
+  return (comp||'').toLowerCase().includes('complete (100');
+}
+
+function getCompletionPct(comp) {
+  if (!comp) return 0;
+  const m = comp.match(/(\d+)%/);
+  if (m) return parseInt(m[1]);
+  if (comp.toLowerCase().includes('complete (100')) return 100;
+  return 0;
+}
+
+function reminderDays(reminder) {
+  if (!reminder) return null;
+  if (reminder.toLowerCase().includes('next day')) return 1;
+  if (reminder.toLowerCase().includes('3 day')) return 3;
+  if (reminder.toLowerCase().includes('monday')) { const d=today.getDay(); return (1+7-d)%7||7; }
+  const wm = reminder.match(/next (\d+) week/); if (wm) return parseInt(wm[1])*7;
+  if (reminder.toLowerCase().includes('1 week')) return 7;
+  return null;
+}
+
+function getReminderDate(task) {
+  // Use the effective reminder (may have been updated in session)
+  const reminder = taskUpdates[task.no]?.reminder || task.reminder;
+  const r = (reminder || '').toLowerCase();
+  
+  // Base date = last progress date (col I), fallback to today
+  let base = task.progressDate instanceof Date && !isNaN(task.progressDate)
+    ? new Date(task.progressDate)
+    : new Date(today);
+  // If task was updated this session, use today as the new base
+  if (taskUpdates[task.no]) base = new Date(today);
+
+  if (!r) return null;
+
+  if (r.includes('next day'))   { base.setDate(base.getDate()+1); return base; }
+  if (r.includes('3 day'))      { base.setDate(base.getDate()+3); return base; }
+  if (r.includes('4 week'))     { base.setDate(base.getDate()+28); return base; }
+  if (r.includes('2 week'))     { base.setDate(base.getDate()+14); return base; }
+  if (r.includes('1 week'))     { base.setDate(base.getDate()+7);  return base; }
+  if (r.includes('monday')) {
+    const day = base.getDay(); // 0=Sun,1=Mon...
+    const daysUntil = day === 1 ? 7 : (1 + 7 - day) % 7 || 7;
+    base.setDate(base.getDate() + daysUntil);
+    return base;
+  }
+  return null;
+}
+
+function getPriColor(p) {
+  if (p==='1 (High)') return '#c0392b';
+  if (p==='2 (Med)') return '#c67c1a';
+  return '#1a7a4a';
+}
+
+function getStatusClass(comp) {
+  const c = (comp||'').toLowerCase();
+  if (c.includes('100')) return 'status-done';
+  if (c.includes('ongoing')) return 'status-ongoing';
+  if (c.includes('mostly')) return 'status-mostly';
+  if (c.includes('not start')) return 'status-notstart';
+  return 'status-regular';
+}
+
+function updateCounts() {
+  const allMains = tasks.filter(t=>t.type==='Main');
+  const gc = t => taskUpdates[t.no]?.completion || t.completion;
+  const mains = allMains.filter(t => !isCompleted(gc(t)));
+  const done  = allMains.filter(t =>  isCompleted(gc(t)));
+  document.getElementById('cnt-all').textContent    = mains.length;
+  document.getElementById('cnt-high').textContent   = mains.filter(t=>t.priority==='1 (High)').length;
+  document.getElementById('cnt-med').textContent    = mains.filter(t=>t.priority==='2 (Med)').length;
+  document.getElementById('cnt-low').textContent    = mains.filter(t=>t.priority==='3 (Low)').length;
+  document.getElementById('cnt-adhoc').textContent  = mains.filter(t=>t.category==='Adhoc').length;
+  document.getElementById('cnt-ho').textContent     = mains.filter(t=>t.category==='HO Project').length;
+  document.getElementById('cnt-follow').textContent = mains.filter(t=>t.category==='HO Followup').length;
+  document.getElementById('kTotal').textContent     = mains.length;
+  document.getElementById('kHigh').textContent      = mains.filter(t=>t.priority==='1 (High)').length;
+  document.getElementById('kInProg').textContent    = mains.filter(t=>(gc(t)||'').toLowerCase().includes('ongoing')).length;
+  document.getElementById('kRemind').textContent    = mains.filter(t=>{const d=getReminderDate(t);return d&&Math.ceil((d-today)/86400000)<=3;}).length;
+  document.getElementById('cntDone').textContent    = done.length;
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  renderTasks();
+}
+
+function renderTasks() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const gc = t => taskUpdates[t.no]?.completion || t.completion;
+  const mains = tasks.filter(t=>t.type==='Main').filter(t=>!isCompleted(gc(t))).filter(t=>{
+    if (currentFilter!=='all') {
+      if (['1 (High)','2 (Med)','3 (Low)'].includes(currentFilter)) { if(t.priority!==currentFilter) return false; }
+      else { if(t.category!==currentFilter) return false; }
+    }
+    if (search) return [t.task,t.pic,t.update,t.no].join(' ').toLowerCase().includes(search);
+    return true;
+  });
+
+  const el = document.getElementById('taskList');
+  if (!mains.length) { el.innerHTML = '<div class="empty-state">No tasks match your filter</div>'; return; }
+
+  el.innerHTML = mains.map(t=>{
+    const subs = tasks.filter(s=>s.type==='Sub'&&s.no.startsWith(t.no)&&s.no.length>t.no.length);
+    const comp = taskUpdates[t.no]?.completion || t.completion;
+    const upd = taskUpdates[t.no]?.update || t.update;
+    const pct = getCompletionPct(comp);
+    const rd = getReminderDate(t);
+    const daysLeft = rd ? Math.ceil((rd-today)/86400000) : null;
+
+    const subsHtml = subs.map(s=>{
+      const sComp = taskUpdates[s.no]?.completion || s.completion;
+      const sUpd  = taskUpdates[s.no]?.update || s.update;
+      const sDone = isCompleted(sComp);
+      const sPct  = getCompletionPct(sComp);
+      const sCompletedAt = taskUpdates[s.no]?.completedAt;
+      return `
+      <div class="sub-row" onclick="openSubModal('${s.no}')">
+        <div class="sub-icon" style="background:${sDone?'var(--done)':getPriColor(s.priority)}"></div>
+        <div class="sub-body">
+          <div class="sub-name${sDone?' sub-done':''}">${s.subtask||s.task}</div>
+          ${sDone&&sCompletedAt?`<div class="sub-done-stamp">✓ Done ${new Date(sCompletedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</div>`:''}
+          <div class="sub-note">${sUpd||'No update yet'}</div>
+          <div class="sub-progress">
+            <div class="sub-prog-bar"><div class="sub-prog-fill" style="width:${sPct}%;background:${sDone?'var(--done)':getPriColor(s.priority)}"></div></div>
+            <span class="tag">${sComp||'N/A'}</span>
+          </div>
+          <div class="sub-meta">
+            <span class="tag">${s.no}</span>
+            ${s.reminder?`<span class="tag">↺ ${taskUpdates[s.no]?.reminder||s.reminder}</span>`:''}
+            ${s.targetDate?`<span class="tag">⊛ ${s.targetDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})}</span>`:''}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="task-card">
+        <div class="task-card-header" onclick="toggleCard('${t.no}','${t.task.replace(/'/g,"\\'")}')">
+          <div class="priority-pill" style="background:${getPriColor(t.priority)}"></div>
+          <div class="task-info">
+            <div class="task-name">${t.task}</div>
+            <div class="task-meta">${t.no} · ${t.pic||'—'} · ${t.category}</div>
+          </div>
+          <span class="status-pill ${getStatusClass(comp)}">${comp||'—'}</span>
+          ${daysLeft!==null?`<span class="reminder-chip">↺ ${daysLeft<=0?'today':'in '+daysLeft+'d'}</span>`:'<span></span>'}
+          <span>${subs.length?`<span class="sub-count-badge${subs.filter(s=>!isCompleted(taskUpdates[s.no]?.completion||s.completion)).length<subs.length?' has-pending':''}">${subs.filter(s=>isCompleted(taskUpdates[s.no]?.completion||s.completion)).length}/${subs.length} done</span>`:''}
+          <button class="expand-btn" id="expbtn_${t.no}">${subs.length?'＋':''}</button></span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:${pct}%;background:${getPriColor(t.priority)}"></div>
+        </div>
+        ${subs.length?`<div class="sub-tasks-wrap" id="subs_${t.no}">
+          ${upd?`<div class="update-log">📝 Latest: ${upd}</div>`:''}
+          ${subsHtml}
+          <div style="margin-top:12px">
+            <button onclick="event.stopPropagation();openModal('${t.no}')" style="font-size:12px;color:var(--accent);background:var(--accent-light);border:1px solid var(--accent);border-radius:8px;padding:6px 14px;cursor:pointer;font-family:'DM Sans',sans-serif">+ Update main task</button>
+          </div>
+        </div>`:''}
+      </div>
+    `;
+  }).join('');
+}
+
+const openCards = new Set();
+function toggleCard(id, title) {
+  const el = document.getElementById('subs_'+id);
+  if (!el) { openModal(id); return; }
+  if (openCards.has(id)) { openCards.delete(id); el.classList.remove('open'); }
+  else { openCards.add(id); el.classList.add('open'); }
+}
+
+function openModal(id) {
+  activeTaskId = id;
+  const t = tasks.find(x=>x.no===id);
+  if (!t) return;
+  document.getElementById('modalTitle').textContent = t.task;
+  document.getElementById('modalUpdate').value = taskUpdates[id]?.update||t.update||'';
+  document.getElementById('modalStatus').value = taskUpdates[id]?.completion||t.completion||'Regular update';
+  document.getElementById('modalReminder').value = '';
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('show'); activeTaskId=null; }
+
+function saveUpdate() {
+  if (!activeTaskId) return;
+  const newComp = document.getElementById('modalStatus').value;
+  const newReminder = document.getElementById('modalReminder').value;
+  const t = tasks.find(x=>x.no===activeTaskId);
+  const wasCompleted = isCompleted(taskUpdates[activeTaskId]?.completion || t?.completion || '');
+  const nowCompleted = isCompleted(newComp);
+  taskUpdates[activeTaskId] = {
+    update: document.getElementById('modalUpdate').value,
+    completion: newComp,
+    completedAt: nowCompleted && !wasCompleted ? new Date().toISOString() : (taskUpdates[activeTaskId]?.completedAt || null)
+  };
+  // Update reminder on the task object itself so calendar reflects it
+  if (newReminder && t) t.reminder = newReminder;
+  closeModal(); renderAll();
+  if (nowCompleted && !wasCompleted) showToast('✓ Moved to Completed', 'green');
+  else showToast('✓ Update saved');
+}
+
+// ── Sub-task modal ────────────────────────────────────────
+let activeSubId = null;
+function openSubModal(subNo) {
+  activeSubId = subNo;
+  const s = tasks.find(x=>x.no===subNo);
+  if (!s) return;
+  const upd = taskUpdates[subNo];
+  document.getElementById('subModalTitle').textContent = 'Update: ' + (s.subtask||s.task);
+  document.getElementById('subModalDesc').value  = s.subtask || s.task || '';
+  document.getElementById('subModalUpdate').value = upd?.update || s.update || '';
+  document.getElementById('subModalStatus').value = upd?.completion || s.completion || 'Regular update';
+  document.getElementById('subModalReminder').value = '';
+  document.getElementById('subModal').classList.add('show');
+}
+function closeSubModal() { document.getElementById('subModal').classList.remove('show'); activeSubId=null; }
+
+function saveSubUpdate() {
+  if (!activeSubId) return;
+  const newComp = document.getElementById('subModalStatus').value;
+  const newReminder = document.getElementById('subModalReminder').value;
+  const newDesc = document.getElementById('subModalDesc').value.trim();
+  const s = tasks.find(x=>x.no===activeSubId);
+  const wasCompleted = isCompleted(taskUpdates[activeSubId]?.completion || s?.completion || '');
+  const nowCompleted = isCompleted(newComp);
+  taskUpdates[activeSubId] = {
+    update: document.getElementById('subModalUpdate').value,
+    completion: newComp,
+    completedAt: nowCompleted && !wasCompleted ? new Date().toISOString() : (taskUpdates[activeSubId]?.completedAt || null)
+  };
+  if (newDesc && s) s.subtask = newDesc;
+  if (newReminder && s) { s.reminder = newReminder; s.progressDate = new Date(today); }
+  closeSubModal(); renderAll();
+  if (nowCompleted && !wasCompleted) showToast('✓ Sub-task completed', 'green');
+  else showToast('✓ Sub-task updated');
+}
+
+// ── Add Task modal ────────────────────────────────────────
+let pendingSubEntries = [];
+let addTaskTab = 'main';
+
+function openAddTaskModal() {
+  pendingSubEntries = [];
+  addTaskTab = 'main';
+  document.getElementById('atTask').value = '';
+  document.getElementById('atPic').value = '';
+  document.getElementById('atUpdate').value = '';
+  document.getElementById('atTargetDate').value = '';
+  document.getElementById('atCategory').value = 'Adhoc';
+  document.getElementById('atPriority').value = '2 (Med)';
+  document.getElementById('atCompletion').value = 'Not start';
+  document.getElementById('atReminder').value = '';
+  document.getElementById('atSubDesc').value = '';
+  document.getElementById('atSubUpdate').value = '';
+  document.getElementById('atSubCompletion').value = 'Not start';
+  document.getElementById('atSubReminder').value = '';
+  document.getElementById('subEntries').innerHTML = '';
+  document.getElementById('addTaskTitle').textContent = 'Add New Task';
+  document.getElementById('addTaskSubtitle').textContent = 'Fill in the details below. Sub-tasks are optional.';
+  // Populate parent task dropdown
+  const sel = document.getElementById('atParentTask');
+  sel.innerHTML = tasks.filter(t=>t.type==='Main').map(t=>`<option value="${t.no}">${t.no} — ${t.task}</option>`).join('');
+  switchAddTab('main');
+  document.getElementById('addTaskModal').classList.add('show');
+}
+function closeAddTaskModal() { document.getElementById('addTaskModal').classList.remove('show'); }
+
+function switchAddTab(tab) {
+  addTaskTab = tab;
+  document.getElementById('tabMain').className = 'modal-tab' + (tab==='main'?' on':'');
+  document.getElementById('tabSub').className  = 'modal-tab' + (tab==='sub'?' on':'');
+  document.getElementById('addMainFields').style.display = tab==='main'?'block':'none';
+  document.getElementById('addSubFields').style.display  = tab==='sub' ?'block':'none';
+  document.getElementById('addTaskTitle').textContent = tab==='main'?'Add New Task':'Add Sub-task';
+  document.getElementById('addTaskSubtitle').textContent = tab==='main'
+    ? 'Fill in the details below. Sub-tasks are optional.'
+    : 'Add a sub-task to an existing main task.';
+}
+
+function addSubEntry() {
+  const inp = document.getElementById('subEntryInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  pendingSubEntries.push(val);
+  inp.value = '';
+  renderSubEntries();
+}
+
+function removeSubEntry(i) {
+  pendingSubEntries.splice(i, 1);
+  renderSubEntries();
+}
+
+function renderSubEntries() {
+  document.getElementById('subEntries').innerHTML = pendingSubEntries.map((s,i)=>`
+    <div class="sub-entry">
+      <span style="flex:1">${s}</span>
+      <button class="sub-entry-del" onclick="removeSubEntry(${i})">×</button>
+    </div>`).join('');
+}
+
+function generateTaskNo(type, parentNo) {
+  if (type === 'Sub' && parentNo) {
+    const siblings = tasks.filter(t=>t.type==='Sub'&&t.no.startsWith(parentNo)&&t.no.length>parentNo.length);
+    const n = siblings.length + 1;
+    return parentNo + 'S' + n;
+  }
+  // Main task: use YYMMNN format
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(2);
+  const mm = String(now.getMonth()+1).padStart(2,'0');
+  const existing = tasks.filter(t=>t.type==='Main'&&t.no.startsWith(yy+mm));
+  const nn = String(existing.length+1).padStart(2,'0');
+  return yy + mm + nn;
+}
+
+function saveNewTask() {
+  if (addTaskTab === 'main') {
+    const taskName = document.getElementById('atTask').value.trim();
+    if (!taskName) { showToast('⚠ Task name is required'); return; }
+    const no = generateTaskNo('Main');
+    const targetVal = document.getElementById('atTargetDate').value;
+    const newTask = {
+      no, type: 'Main',
+      task: taskName,
+      subtask: '',
+      pic: document.getElementById('atPic').value.trim(),
+      category: document.getElementById('atCategory').value,
+      priority: document.getElementById('atPriority').value,
+      firstDate: new Date(),
+      progressDate: new Date(),
+      reminder: document.getElementById('atReminder').value,
+      update: document.getElementById('atUpdate').value.trim(),
+      targetDate: targetVal ? new Date(targetVal) : null,
+      completion: document.getElementById('atCompletion').value,
+    };
+    tasks.push(newTask);
+    // Add sub-task entries
+    pendingSubEntries.forEach((desc, i) => {
+      tasks.push({
+        no: no + 'S' + (i+1), type: 'Sub',
+        task: taskName, subtask: desc,
+        pic: newTask.pic, category: newTask.category,
+        priority: newTask.priority,
+        firstDate: new Date(), progressDate: new Date(),
+        reminder: '', update: '', targetDate: null,
+        completion: 'Not start',
+      });
+    });
+    closeAddTaskModal();
+    renderAll();
+    showToast('✓ Task added: ' + no, 'green');
+  } else {
+    // Sub-task
+    const parentNo = document.getElementById('atParentTask').value;
+    const desc = document.getElementById('atSubDesc').value.trim();
+    if (!desc) { showToast('⚠ Sub-task description is required'); return; }
+    const parent = tasks.find(t=>t.no===parentNo);
+    if (!parent) return;
+    const no = generateTaskNo('Sub', parentNo);
+    tasks.push({
+      no, type: 'Sub',
+      task: parent.task, subtask: desc,
+      pic: parent.pic, category: parent.category,
+      priority: parent.priority,
+      firstDate: new Date(), progressDate: new Date(),
+      reminder: document.getElementById('atSubReminder').value,
+      update: document.getElementById('atSubUpdate').value.trim(),
+      targetDate: null,
+      completion: document.getElementById('atSubCompletion').value,
+    });
+    closeAddTaskModal();
+    renderAll();
+    showToast('✓ Sub-task added: ' + no, 'green');
+  }
+}
+
+function renderCompleted() {
+  const gc = t => taskUpdates[t.no]?.completion || t.completion;
+  const doneMains = tasks.filter(t => t.type==='Main' && isCompleted(gc(t)));
+  const section = document.getElementById('completedSection');
+  const list    = document.getElementById('completedList');
+  const countEl = document.getElementById('completedCount');
+  if (!doneMains.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  countEl.textContent = doneMains.length + ' done';
+  if (!doneVisible) return;
+  list.innerHTML = doneMains.map(t => {
+    const comp = gc(t);
+    const upd  = taskUpdates[t.no]?.update || t.update;
+    const pct  = getCompletionPct(comp);
+    const subs = tasks.filter(s => s.type==='Sub' && s.no.startsWith(t.no) && s.no.length > t.no.length);
+    const completedAt = taskUpdates[t.no]?.completedAt;
+    const subsHtml = subs.map(s => `
+      <div class="sub-row">
+        <div class="sub-icon" style="background:var(--done)"></div>
+        <div class="sub-body">
+          <div class="sub-name">${s.subtask||s.task}</div>
+          <div class="sub-note">${s.update||'—'}</div>
+          <div class="sub-meta"><span class="tag">${s.no}</span><span class="tag">${s.completion||'N/A'}</span></div>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="task-card done-card">
+        <div class="task-card-header" onclick="toggleCard('done_${t.no}','')">
+          <div class="priority-pill" style="background:var(--done)"></div>
+          <div class="task-info">
+            <div class="task-name" style="text-decoration:line-through;color:var(--muted)">${t.task}</div>
+            <div class="task-meta">${t.no} · ${t.pic||'—'} · ${t.category}</div>
+            ${completedAt ? `<div class="done-stamp">✓ Completed ${new Date(completedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>` : ''}
+          </div>
+          <span class="status-pill status-done">${comp}</span>
+          <span></span>
+          <button class="expand-btn">${subs.length ? '＋' : ''}</button>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:100%;background:var(--done)"></div>
+        </div>
+        ${(subs.length || upd) ? `<div class="sub-tasks-wrap" id="subs_done_${t.no}">
+          ${upd ? `<div class="update-log" style="border-left-color:var(--done)">📝 ${upd}</div>` : ''}
+          ${subsHtml}
+        </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleDone() {
+  doneVisible = !doneVisible;
+  const btn  = document.getElementById('toggleDoneBtn');
+  const list = document.getElementById('completedList');
+  if (doneVisible) { btn.textContent = '▾ Hide'; renderCompleted(); }
+  else             { btn.textContent = '▸ Show'; list.innerHTML = ''; }
+}
+
+function fmtDate(d) {
+  if (!d || !(d instanceof Date) || isNaN(d)) return '';
+  return d.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+function downloadExcel() {
+  showToast('Download disabled in demo mode', 'blue');
+}
+
+function renderMiniCal() {
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const el = document.getElementById('miniCal');
+  const reminderDatesInMonth = {};
+  tasks.forEach(t=>{
+    const rd=getReminderDate(t);
+    if(rd&&rd.getMonth()===calM&&rd.getFullYear()===calY) reminderDatesInMonth[rd.getDate()]=true;
+  });
+  const first=new Date(calY,calM,1).getDay(), last=new Date(calY,calM+1,0).getDate();
+  const dows=['S','M','T','W','T','F','S'];
+  let html=`
+    <div class="mini-cal-head">
+      <div class="mini-cal-title">${months[calM].slice(0,3)} ${calY}</div>
+      <div class="mini-cal-nav">
+        <button onclick="changeCalM(-1)">‹</button>
+        <button onclick="changeCalM(1)">›</button>
+      </div>
+    </div>
+    <div class="mini-cal-grid">
+      ${dows.map(d=>`<div class="mc-dow">${d}</div>`).join('')}
+  `;
+  for(let i=0;i<first;i++) html+='<div></div>';
+  for(let d=1;d<=last;d++){
+    const isToday=d===today.getDate()&&calM===today.getMonth()&&calY===today.getFullYear();
+    const hasR=reminderDatesInMonth[d];
+    let cls='mc-day';
+    if(isToday) cls+=' today';
+    else if(hasR) cls+=' has-reminder';
+    html+=`<div class="${cls}">${d}</div>`;
+  }
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function changeCalM(d){ calM+=d; if(calM>11){calM=0;calY++;} if(calM<0){calM=11;calY--;} renderMiniCal(); }
+
+function renderReminders() {
+  const el=document.getElementById('reminderList');
+  if(!tasks.length) return;
+  const items=tasks.map(t=>({task:t,date:getReminderDate(t)})).filter(x=>x.date).sort((a,b)=>a.date-b.date).slice(0,8);
+  if(!items.length){el.innerHTML='<div style="font-size:12px;color:var(--muted)">No reminders scheduled</div>';return;}
+  el.innerHTML=items.map(({task:t,date:d})=>{
+    const days=Math.ceil((d-today)/86400000);
+    const urgent=days<=2;
+    return `
+      <div class="reminder-card ${urgent?'rem-urgent':''}">
+        <div class="rem-date-box">
+          <div class="rem-day">${d.getDate()}</div>
+          <div class="rem-mon">${d.toLocaleDateString('en-GB',{month:'short'})}</div>
+        </div>
+        <div>
+          <div class="rem-task">${t.task}</div>
+          <div class="rem-who">${t.pic||t.category}</div>
+          <div class="rem-badge">${days<=0?'today':'in '+days+'d'} · ${t.reminder}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderToday() {
+  const el=document.getElementById('todaySection');
+  if(!tasks.length) return;
+  const todayTasks=tasks.filter(t=>{const d=getReminderDate(t);return d&&Math.ceil((d-today)/86400000)<=1;});
+  if(!todayTasks.length){el.innerHTML='<div style="font-size:12px;color:var(--muted)">All clear for today ✓</div>';return;}
+  el.innerHTML=todayTasks.map(t=>`
+    <div class="today-card">
+      <div class="today-task-name">${t.task}</div>
+      <div class="today-action">↺ ${t.reminder}</div>
+      ${t.targetDate?`<div class="today-target">Target: ${t.targetDate.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>`:''}
+    </div>
+  `).join('');
+}
+
+renderMiniCal();
+</script>
+<div class="toast" id="toast"></div>
+</body>
+</html>
